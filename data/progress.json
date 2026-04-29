@@ -1,0 +1,114 @@
+{
+  "tiles": [
+    {
+      "index": 0,
+      "status": "unlocked",
+      "building": "🕌"
+    },
+    {
+      "index": 1,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 2,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 3,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 4,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 5,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 6,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 7,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 8,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 9,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 10,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 11,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 12,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 13,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 14,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 15,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 16,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 17,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 18,
+      "status": "locked",
+      "building": null
+    },
+    {
+      "index": 19,
+      "status": "locked",
+      "building": null
+    }
+  ],
+  "problemStats": {
+    "p001": {
+      "attempts": 1,
+      "correct": 1,
+      "consecutiveCorrect": 1,
+      "lastAttempt": "2026-04-29",
+      "nextReview": "2026-04-30",
+      "mastered": false
+    }
+  }
+}

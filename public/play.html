@@ -1,0 +1,640 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>闯关游戏 · 错题王国</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    /* ── 王国地图 ── */
+    .kingdom-container {
+      max-width: 700px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    .kingdom-progress {
+      text-align: center;
+      margin-bottom: 16px;
+      font-weight: 600;
+      color: var(--text-light);
+    }
+    .kingdom-progress .bar-wrap {
+      height: 12px;
+      background: #e0d8cc;
+      border-radius: 6px;
+      margin: 8px 0;
+      overflow: hidden;
+    }
+    .kingdom-progress .bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, var(--gold), var(--green));
+      border-radius: 6px;
+      transition: width 0.6s ease;
+    }
+    .kingdom-grid {
+      display: grid;
+      grid-template-columns: repeat(5, 1fr);
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+    .kingdom-tile {
+      aspect-ratio: 1;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 2.2rem;
+      cursor: default;
+      transition: all 0.3s;
+      position: relative;
+    }
+    /* 锁定（灰土） */
+    .kingdom-tile.locked {
+      background: #e8e4dc;
+      border: 2px dashed #d0c8b8;
+    }
+    .kingdom-tile.locked::after {
+      content: '🌱';
+      font-size: 1.5rem;
+      opacity: 0.4;
+    }
+    /* 可挑战（发光） */
+    .kingdom-tile.available {
+      background: #fff;
+      border: 3px solid var(--gold);
+      cursor: pointer;
+      animation: pulse 1.5s ease-in-out infinite;
+      box-shadow: 0 0 16px rgba(240,165,0,0.3);
+    }
+    .kingdom-tile.available::after {
+      content: '❓';
+      font-size: 2rem;
+    }
+    .kingdom-tile.available:active { transform: scale(0.92); }
+    /* 已解锁（建筑） */
+    .kingdom-tile.unlocked {
+      background: linear-gradient(135deg, #e8f5e9, #c8e6c9);
+      border: 3px solid var(--green-light);
+      cursor: default;
+    }
+    .kingdom-tile.unlocked::after {
+      content: attr(data-building);
+      font-size: 2.2rem;
+    }
+    @keyframes pulse {
+      0%, 100% { box-shadow: 0 0 12px rgba(240,165,0,0.3); }
+      50% { box-shadow: 0 0 24px rgba(240,165,0,0.55); }
+    }
+    @keyframes unlockBoom {
+      0% { transform: scale(1); }
+      30% { transform: scale(1.3); }
+      60% { transform: scale(0.9); }
+      100% { transform: scale(1); }
+    }
+
+    /* ── 题目弹窗 ── */
+    .question-text {
+      background: #fafaf7;
+      border: 2px solid #e0d8cc;
+      border-radius: 10px;
+      padding: 16px;
+      font-size: 1.15rem;
+      line-height: 1.8;
+      margin-bottom: 16px;
+    }
+    .question-tags {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 12px;
+    }
+
+    /* ── 草稿 Canvas ── */
+    .scratchpad-wrap {
+      margin-bottom: 12px;
+      position: relative;
+    }
+    .scratchpad-label {
+      font-weight: 600;
+      font-size: 0.85rem;
+      color: var(--text-light);
+      margin-bottom: 6px;
+    }
+    .scratchpad-tools {
+      display: flex;
+      gap: 6px;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+    .tool-btn {
+      width: 32px;
+      height: 32px;
+      border-radius: 50%;
+      border: 2px solid #e0d8cc;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.8rem;
+      background: #fff;
+      transition: all 0.15s;
+    }
+    .tool-btn.active { border-color: var(--blue); box-shadow: 0 0 6px rgba(91,141,239,0.4); }
+    .tool-btn.color-black { background: #333; }
+    .tool-btn.color-red { background: #e74c3c; }
+    .tool-btn.color-blue { background: #5b8def; }
+    .tool-btn.eraser { background: #fff; font-size: 1rem; }
+    canvas#scratchpad {
+      width: 100%;
+      border: 2px solid #e0d8cc;
+      border-radius: 10px;
+      background: #fff;
+      touch-action: none;
+    }
+
+    /* ── 答案输入 ── */
+    .answer-wrap {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 12px;
+    }
+    .answer-wrap input {
+      flex: 1;
+      padding: 12px 16px;
+      font-size: 1.3rem;
+      border: 3px solid #e0d8cc;
+      border-radius: 10px;
+      text-align: center;
+    }
+    .answer-wrap input:focus {
+      outline: none;
+      border-color: var(--blue);
+    }
+
+    /* ── 评分反馈 ── */
+    .grade-result {
+      text-align: center;
+      padding: 20px;
+      border-radius: 12px;
+      margin-top: 16px;
+      display: none;
+      animation: modalIn 0.4s ease;
+    }
+    .grade-result.correct {
+      background: #e8f5e9;
+      border: 2px solid var(--green);
+      display: block;
+    }
+    .grade-result.wrong {
+      background: #fff3e0;
+      border: 2px solid var(--gold);
+      display: block;
+    }
+    .grade-result .big-icon { font-size: 3rem; margin-bottom: 8px; }
+    .grade-result .msg { font-size: 1.2rem; font-weight: 700; margin-bottom: 6px; }
+    .grade-result .hint-box {
+      background: #fff;
+      border-radius: 8px;
+      padding: 12px;
+      margin-top: 10px;
+      text-align: left;
+      font-size: 0.95rem;
+      line-height: 1.6;
+    }
+    .grade-result .answer-reveal {
+      color: var(--green);
+      font-weight: 700;
+      font-size: 1.1rem;
+      margin-top: 8px;
+    }
+
+    /* ── 完成庆祝 ── */
+    .victory-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.7);
+      z-index: 300;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      animation: fadeIn 0.5s;
+    }
+    .victory-card {
+      background: #fff;
+      border-radius: 20px;
+      padding: 40px;
+      text-align: center;
+      max-width: 420px;
+      animation: modalIn 0.5s ease;
+    }
+    .victory-card .trophy { font-size: 5rem; animation: float 2s ease-in-out infinite; }
+    .victory-card h2 { margin: 16px 0 8px; font-size: 1.6rem; }
+    .victory-card .sub { color: var(--text-light); margin-bottom: 20px; }
+
+    /* ── 响应式 ── */
+    @media (max-width: 500px) {
+      .kingdom-grid { gap: 6px; }
+      .kingdom-tile { border-radius: 10px; font-size: 1.6rem; }
+      .kingdom-tile::after { font-size: 1.4rem !important; }
+      .kingdom-tile.unlocked::after { font-size: 1.6rem !important; }
+    }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🏰 建造我的王国</h1>
+    <a href="/" class="back">← 首页</a>
+  </div>
+
+  <div class="kingdom-container">
+    <!-- 进度条 -->
+    <div class="kingdom-progress">
+      <div>已建成 <strong id="builtCount">0</strong> / 20 栋建筑</div>
+      <div class="bar-wrap">
+        <div class="bar-fill" id="progressBar" style="width:0%"></div>
+      </div>
+      <div style="font-size:0.85rem;margin-top:4px;">
+        待挑战错题：<strong id="availCount">0</strong> 道 &nbsp;|&nbsp;
+        已掌握：<strong id="masteredCount">0</strong> 道
+      </div>
+      <div style="font-size:0.8rem;color:var(--text-light);margin-top:4px;" id="subjectSummary"></div>
+    </div>
+
+    <!-- 王国网格 -->
+    <div class="kingdom-grid" id="kingdomGrid"></div>
+
+    <!-- 提示文字 -->
+    <p style="text-align:center;color:var(--text-light);font-size:0.9rem;" id="kingdomHint">
+      点击发光的空地开始挑战！
+    </p>
+  </div>
+
+  <!-- 答题弹窗 -->
+  <div class="modal-overlay" id="questionModal" style="display:none">
+    <div class="modal" id="questionCard">
+      <h2>📝 应用题挑战 <span id="qSubjectBadge"></span></h2>
+      <div class="question-tags" id="qTags"></div>
+      <div class="question-text" id="qContent"></div>
+
+      <!-- 草稿区 -->
+      <div class="scratchpad-wrap">
+        <div class="scratchpad-label">✏️ 草稿区（打草稿、列竖式）</div>
+        <div class="scratchpad-tools">
+          <button class="tool-btn color-black active" data-color="#333" title="黑色"></button>
+          <button class="tool-btn color-red" data-color="#e74c3c" title="红色"></button>
+          <button class="tool-btn color-blue" data-color="#5b8def" title="蓝色"></button>
+          <button class="tool-btn eraser" data-color="#fff" title="橡皮擦">🧹</button>
+          <button class="tool-btn" id="clearCanvas" title="清空" style="font-size:1rem;">🗑️</button>
+        </div>
+        <canvas id="scratchpad" width="600" height="240"></canvas>
+      </div>
+
+      <!-- 答案输入 -->
+      <div class="answer-wrap">
+        <input type="text" id="answerInput" placeholder="在这里写答案（支持 iPad 随手写）" autocomplete="off">
+        <button class="btn btn-primary" id="submitAnswer">✅ 提交</button>
+      </div>
+
+      <div class="modal-actions">
+        <button class="btn btn-outline btn-sm" id="closeQuestion">关闭</button>
+      </div>
+
+      <!-- 评分反馈区 -->
+      <div class="grade-result" id="gradeResult"></div>
+    </div>
+  </div>
+
+  <!-- 庆祝胜利 -->
+  <div class="victory-overlay" id="victoryOverlay" style="display:none">
+    <div class="victory-card">
+      <div class="trophy">🏆</div>
+      <h2>王国建造完成！</h2>
+      <p class="sub">所有错题已掌握，你是真正的数学勇士！</p>
+      <button class="btn btn-gold btn-lg" id="resetProgress">🔄 重新开始</button>
+      <button class="btn btn-outline" id="closeVictory" style="margin-left:8px;">再看看王国</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" style="display:none"></div>
+
+  <script>
+    // ── 全局状态 ──
+    let progress = null;
+    let problems = [];
+    let currentProblem = null;
+    let currentTileIndex = null;
+
+    function $(s) { return document.querySelector(s); }
+
+    async function api(url, opts = {}) {
+      const res = await fetch(url, { headers: { 'Content-Type': 'application/json' }, ...opts });
+      return res.json();
+    }
+
+    function showToast(msg, type = 'info') {
+      const t = $('#toast');
+      t.textContent = msg;
+      t.className = 'toast ' + type;
+      t.style.display = 'block';
+      t.style.animation = 'toastIn 0.3s ease';
+      clearTimeout(t._timeout);
+      t._timeout = setTimeout(() => {
+        t.style.animation = 'toastOut 0.3s ease forwards';
+        setTimeout(() => { t.style.display = 'none'; }, 300);
+      }, 2000);
+    }
+
+    // ── Canvas 草稿 ──
+    const canvas = $('#scratchpad');
+    const ctx = canvas.getContext('2d');
+    let drawing = false;
+    let penColor = '#333';
+    let penWidth = 2.5;
+
+    function resizeCanvas() {
+      const rect = canvas.parentElement.getBoundingClientRect();
+      const w = Math.min(rect.width - 4, 600);
+      const ratio = window.devicePixelRatio || 1;
+      canvas.width = w * ratio;
+      canvas.height = 240 * ratio;
+      canvas.style.width = w + 'px';
+      canvas.style.height = '240px';
+      ctx.setTransform(1, 0, 0, 1, 0, 0);
+      ctx.scale(ratio, ratio);
+      ctx.strokeStyle = penColor;
+      ctx.lineWidth = penWidth;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+    }
+
+    function getPos(e) {
+      const rect = canvas.getBoundingClientRect();
+      const scaleX = 600 / rect.width;
+      const scaleY = 240 / rect.height;
+      return {
+        x: (e.clientX - rect.left) * scaleX,
+        y: (e.clientY - rect.top) * scaleY
+      };
+    }
+
+    canvas.addEventListener('pointerdown', e => {
+      drawing = true;
+      const pos = getPos(e);
+      ctx.beginPath();
+      ctx.moveTo(pos.x, pos.y);
+    });
+
+    canvas.addEventListener('pointermove', e => {
+      if (!drawing) return;
+      e.preventDefault();
+      const pos = getPos(e);
+      ctx.lineTo(pos.x, pos.y);
+      ctx.stroke();
+    });
+
+    canvas.addEventListener('pointerup', () => { drawing = false; });
+    canvas.addEventListener('pointerleave', () => { drawing = false; });
+
+    // 工具按钮
+    document.querySelectorAll('.tool-btn[data-color]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.tool-btn[data-color]').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        penColor = btn.dataset.color;
+        ctx.strokeStyle = penColor;
+        ctx.lineWidth = penColor === '#fff' ? 10 : 2.5;
+        penWidth = ctx.lineWidth;
+      });
+    });
+
+    $('#clearCanvas').addEventListener('click', () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+    });
+
+    resizeCanvas();
+    window.addEventListener('resize', resizeCanvas);
+
+    // ── 加载数据 ──
+    async function loadData() {
+      [progress, problems] = await Promise.all([
+        api('/api/progress'),
+        api('/api/problems')
+      ]);
+      renderKingdom();
+    }
+
+    // ── 渲染王国 ──
+    function renderKingdom() {
+      const grid = $('#kingdomGrid');
+      const tiles = progress.tiles;
+      const today = new Date().toISOString().slice(0, 10);
+
+      // 计算可用题目
+      const available = problems.filter(p => {
+        const stats = progress.problemStats[p.id];
+        if (!stats) return true;
+        if (stats.mastered) return false;
+        if (!stats.nextReview) return true;
+        return stats.nextReview <= today;
+      });
+
+      const built = tiles.filter(t => t.status === 'unlocked').length;
+      const mastered = Object.values(progress.problemStats).filter(s => s.mastered).length;
+
+      $('#builtCount').textContent = built;
+      $('#availCount').textContent = available.length;
+      $('#masteredCount').textContent = mastered;
+      $('#progressBar').style.width = (built / 20 * 100) + '%';
+
+      // 学科统计
+      const ss = progress.subjectStats || {};
+      const subLabels = { math: '📐', chinese: '📖', english: '🌍' };
+      $('#subjectSummary').innerHTML = ['math', 'chinese', 'english'].map(s =>
+        `<span class="badge badge-subject badge-${s}" style="margin:2px 4px;">${subLabels[s]} ${(ss[s]||{}).mastered||0}/${(ss[s]||{}).total||0}</span>`
+      ).join(' ');
+
+      grid.innerHTML = tiles.map((tile, i) => {
+        let cls = 'locked';
+        let bld = '';
+
+        if (tile.status === 'unlocked') {
+          cls = 'unlocked';
+          bld = tile.building || '🏠';
+        } else if (available.length > 0 && tile.status === 'locked') {
+          cls = 'available';
+        }
+
+        return `<div class="kingdom-tile ${cls}"
+                     data-index="${i}"
+                     data-building="${bld}"
+                     ${cls === 'available' ? 'data-clickable="1"' : ''}>
+                </div>`;
+      }).join('');
+
+      // 点击事件
+      grid.querySelectorAll('.kingdom-tile.available').forEach(tile => {
+        tile.addEventListener('click', () => {
+          currentTileIndex = parseInt(tile.dataset.index);
+          pickProblem(available);
+        });
+      });
+
+      // 提示文字
+      if (built >= 20) {
+        $('#kingdomHint').textContent = '🎉 王国已建成！你是最棒的！';
+        setTimeout(() => $('#victoryOverlay').style.display = 'flex', 800);
+      } else if (available.length === 0) {
+        $('#kingdomHint').textContent = '👍 今天没有需要复习的错题了，明天再来吧！';
+      } else {
+        $('#kingdomHint').textContent = `还有 ${available.length} 道错题等你挑战！点击发光的空地开始～`;
+      }
+    }
+
+    // ── 选题 ──
+    function pickProblem(available) {
+      if (available.length === 0) {
+        showToast('今天没有需要复习的错题啦～', 'info');
+        return;
+      }
+      currentProblem = available[Math.floor(Math.random() * available.length)];
+
+      // 显示弹窗
+      const subLabels = { math: '📐 数学', chinese: '📖 语文', english: '🌍 英语' };
+      const sub = currentProblem.subject || 'math';
+      $('#qSubjectBadge').innerHTML = `<span class="badge badge-subject badge-${sub}">${subLabels[sub]}</span>`;
+      $('#qContent').textContent = currentProblem.content;
+      $('#qTags').innerHTML = (currentProblem.tags || []).map(t => `<span class="badge">${t}</span>`).join('');
+
+      // 重置状态
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      $('#answerInput').value = '';
+      $('#gradeResult').style.display = 'none';
+      $('#gradeResult').className = 'grade-result';
+      $('#submitAnswer').style.display = 'inline-block';
+      $('#answerInput').disabled = false;
+
+      $('#questionModal').style.display = 'flex';
+      setTimeout(() => $('#answerInput').focus(), 300);
+    }
+
+    // ── 提交答案 ──
+    async function submitAnswer() {
+      const answer = $('#answerInput').value.trim();
+      if (!answer) {
+        $('#answerInput').focus();
+        return;
+      }
+
+      const res = await api('/api/grade', {
+        method: 'POST',
+        body: JSON.stringify({ problemId: currentProblem.id, answer, tileIndex: currentTileIndex })
+      });
+
+      const resultDiv = $('#gradeResult');
+      resultDiv.style.display = 'block';
+
+      if (res.correct) {
+        resultDiv.className = 'grade-result correct';
+        resultDiv.innerHTML = `
+          <div class="big-icon">🎉</div>
+          <div class="msg">回答正确！太棒了！</div>
+          <div class="answer-reveal">答案：${res.answer}</div>
+          ${res.unlockedTile ? `<p style="margin-top:8px;">🏗️ 解锁了新建筑：${res.unlockedTile.building}！</p>` : ''}
+          ${res.mastered ? '<p style="margin-top:4px;color:var(--gold);">⭐ 这道题已完全掌握！</p>' : ''}
+          <p style="margin-top:8px;color:var(--text-light);">王国进度：${res.stats.total}/20 栋</p>
+        `;
+
+        // 更新进度
+        progress = await api('/api/progress');
+
+        // 动画解锁地块
+        if (res.unlockedTile) {
+          const tileEl = document.querySelector(`.kingdom-tile[data-index="${res.unlockedTile.index}"]`);
+          if (tileEl) {
+            tileEl.style.animation = 'unlockBoom 0.6s ease';
+            setTimeout(() => {
+              tileEl.className = 'kingdom-tile unlocked';
+              tileEl.setAttribute('data-building', res.unlockedTile.building);
+              tileEl.style.animation = '';
+            }, 600);
+          }
+        }
+
+        setTimeout(() => {
+          renderKingdom();
+          if (res.stats.total >= 20) {
+            $('#victoryOverlay').style.display = 'flex';
+          }
+        }, 700);
+
+        // 禁用重复提交
+        $('#submitAnswer').style.display = 'none';
+        $('#answerInput').disabled = true;
+
+      } else {
+        resultDiv.className = 'grade-result wrong';
+        resultDiv.innerHTML = `
+          <div class="big-icon">💪</div>
+          <div class="msg">还差一点！看看提示再试试～</div>
+          ${res.hint ? `<div class="hint-box"><strong>💡 提示：</strong>${res.hint}</div>` : ''}
+          <div class="answer-reveal">正确答案：${res.answer}</div>
+          <button class="btn btn-outline btn-sm" onclick="retryQuestion()" style="margin-top:10px;">🔄 再试一次</button>
+        `;
+        $('#submitAnswer').style.display = 'none';
+        $('#answerInput').disabled = true;
+
+        // 更新进度（不重绘，保持当前弹窗）
+        progress = await api('/api/progress');
+      }
+    }
+
+    $('#submitAnswer').addEventListener('click', submitAnswer);
+    $('#answerInput').addEventListener('keydown', e => {
+      if (e.key === 'Enter') submitAnswer();
+    });
+
+    // 重试
+    function retryQuestion() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      $('#answerInput').value = '';
+      $('#gradeResult').style.display = 'none';
+      $('#submitAnswer').style.display = 'inline-block';
+      $('#answerInput').disabled = false;
+      $('#answerInput').focus();
+    }
+
+    // ── 关闭弹窗 ──
+    $('#closeQuestion').addEventListener('click', () => {
+      $('#questionModal').style.display = 'none';
+      currentProblem = null;
+      currentTileIndex = null;
+      renderKingdom();
+    });
+
+    // 点击遮罩关闭
+    $('#questionModal').addEventListener('click', e => {
+      if (e.target === $('#questionModal')) {
+        $('#questionModal').style.display = 'none';
+        currentProblem = null;
+        currentTileIndex = null;
+        renderKingdom();
+      }
+    });
+
+    // ── 胜利弹窗 ──
+    $('#resetProgress').addEventListener('click', async () => {
+      if (!confirm('确定要重置王国，重新开始吗？')) return;
+      await api('/api/progress/reset', { method: 'POST' });
+      $('#victoryOverlay').style.display = 'none';
+      await loadData();
+      showToast('王国已重置，重新挑战吧！', 'success');
+    });
+
+    $('#closeVictory').addEventListener('click', () => {
+      $('#victoryOverlay').style.display = 'none';
+    });
+
+    // ── 启动 ──
+    loadData();
+  </script>
+</body>
+</html>

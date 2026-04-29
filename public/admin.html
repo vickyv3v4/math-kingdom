@@ -1,0 +1,647 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>家长管理 · 错题王国</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .ocr-preview { max-width: 100%; max-height: 300px; border-radius: 8px; margin: 12px 0; border: 2px solid #e0d8cc; }
+    .ocr-result { background: #fafaf7; border: 2px solid #e0d8cc; border-radius: 8px; padding: 14px; white-space: pre-wrap; font-size: 0.9rem; max-height: 200px; overflow-y: auto; margin: 12px 0; }
+    .problem-list-item { display: flex; align-items: flex-start; justify-content: space-between; padding: 14px; border-bottom: 1px solid #f0ede6; gap: 12px; }
+    .problem-list-item:last-child { border-bottom: none; }
+    .problem-list-item .info { flex: 1; min-width: 0; }
+    .problem-list-item .title { font-weight: 600; margin-bottom: 4px; }
+    .problem-list-item .meta { font-size: 0.8rem; color: var(--text-light); }
+    .problem-list-item .actions { display: flex; gap: 6px; flex-shrink: 0; }
+    .empty-state { text-align: center; padding: 40px; color: var(--text-light); }
+    .empty-state .icon { font-size: 3rem; margin-bottom: 10px; }
+    .file-upload-area {
+      border: 3px dashed #d0c8b8;
+      border-radius: 12px;
+      padding: 40px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s;
+      background: #fafaf7;
+    }
+    .file-upload-area:hover { border-color: var(--blue); background: #f0f4ff; }
+    .file-upload-area .icon { font-size: 2.5rem; margin-bottom: 8px; }
+    .file-upload-area .hint { font-size: 0.85rem; color: var(--text-light); }
+    .tag-input-wrap { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; padding: 8px; border: 2px solid #e0d8cc; border-radius: 8px; min-height: 44px; background: #fafaf7; }
+    .tag-input-wrap:focus-within { border-color: var(--blue); background: #fff; }
+    .tag-pill { display: inline-flex; align-items: center; gap: 4px; padding: 3px 10px; background: #e8f0fe; color: var(--blue-dark); border-radius: 12px; font-size: 0.85rem; }
+    .tag-pill .remove { cursor: pointer; font-weight: bold; margin-left: 2px; }
+    .tag-input-wrap input { border: none; outline: none; font-size: 0.9rem; flex: 1; min-width: 80px; background: transparent; padding: 4px; }
+    .stats-bar { display: flex; gap: 16px; margin-bottom: 16px; flex-wrap: wrap; }
+    .stat-item { background: var(--card); border-radius: 8px; padding: 12px 18px; box-shadow: var(--shadow); text-align: center; min-width: 80px; }
+    .stat-item .num { font-size: 1.6rem; font-weight: 700; color: var(--blue); }
+    .stat-item .label { font-size: 0.8rem; color: var(--text-light); }
+    /* 登录遮罩 */
+    .login-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.5); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+    .login-box { background: #fff; border-radius: 16px; padding: 40px 32px; max-width: 360px; width: 90%; text-align: center; box-shadow: 0 12px 40px rgba(0,0,0,0.2); }
+    .login-box h2 { margin-bottom: 8px; }
+    .login-box .sub { color: var(--text-light); font-size: 0.9rem; margin-bottom: 24px; }
+    .login-box input { width: 100%; padding: 12px 16px; border: 2px solid #e0d8cc; border-radius: 10px; font-size: 1rem; text-align: center; }
+    .login-box input:focus { border-color: var(--blue); outline: none; }
+    .login-box .login-err { color: #e74c3c; font-size: 0.85rem; margin-top: 10px; min-height: 20px; }
+    .btn-logout { background: none; border: 1px solid #ccc; padding: 4px 12px; border-radius: 6px; cursor: pointer; font-size: 0.85rem; color: #666; }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>📝 家长管理</h1>
+    <div style="display:flex;align-items:center;gap:12px;">
+      <button class="btn-logout" id="logoutBtn" style="display:none;">🚪 退出</button>
+      <a href="/" class="back">← 首页</a>
+    </div>
+  </div>
+
+  <div class="container">
+    <!-- 统计 -->
+    <div class="stats-bar" id="statsBar"></div>
+
+    <!-- 标签页 -->
+    <div class="tabs">
+      <button class="tab active" data-tab="manual">✏️ 手动录入</button>
+      <button class="tab" data-tab="ocr-image">📷 拍照识别</button>
+      <button class="tab" data-tab="ocr-pdf">📄 PDF导入</button>
+      <button class="tab" data-tab="list">📋 错题列表</button>
+    </div>
+
+    <!-- Tab 1: 手动录入 -->
+    <div class="tab-content active" id="tab-manual">
+      <div class="card">
+        <h2 style="margin-bottom:16px;">添加错题</h2>
+        <form id="manualForm">
+          <input type="hidden" id="mEditId">
+          <div class="form-group">
+            <label>题目名称</label>
+            <input type="text" id="mTitle" placeholder="例如：糖果问题">
+          </div>
+          <div class="form-group">
+            <label>题目内容 *</label>
+            <textarea id="mContent" placeholder="小明有12颗糖，吃了3颗，还剩几颗？" required></textarea>
+          </div>
+          <div class="form-group">
+            <label>正确答案 *</label>
+            <input type="text" id="mAnswer" placeholder="9" required>
+          </div>
+          <div class="form-group">
+            <label>解题提示</label>
+            <textarea id="mHint" placeholder="用减法：总数12 - 吃掉的3 = 剩下的" rows="2"></textarea>
+          </div>
+          <div class="form-group">
+            <label>标签（回车添加）</label>
+            <div class="tag-input-wrap" id="tagWrap">
+              <input type="text" id="tagInput" placeholder="例如：二年级">
+            </div>
+          </div>
+          <div class="form-group">
+            <label>难度</label>
+            <select id="mDifficulty">
+              <option value="1">⭐ 简单</option>
+              <option value="2">⭐⭐ 中等</option>
+              <option value="3">⭐⭐⭐ 困难</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>学科</label>
+            <select id="mSubject">
+              <option value="math">📐 数学</option>
+              <option value="chinese">📖 语文</option>
+              <option value="english">🌍 英语</option>
+            </select>
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;">
+            <button type="submit" class="btn btn-primary btn-lg" id="saveBtn">💾 保存错题</button>
+            <button type="button" class="btn btn-outline" id="cancelEdit" style="display:none;">取消编辑</button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- Tab 2: 拍照识别 -->
+    <div class="tab-content" id="tab-ocr-image">
+      <div class="card">
+        <h2 style="margin-bottom:16px;">📷 拍照识别错题</h2>
+        <p style="color:var(--text-light);margin-bottom:16px;">拍下孩子的错题本或试卷，自动识别文字后您可以调整确认。</p>
+
+        <div class="file-upload-area" id="imgDropArea">
+          <div class="icon">📸</div>
+          <p>点击或拖拽上传图片</p>
+          <p class="hint">支持 jpg/png/webp</p>
+          <input type="file" id="imgFile" accept="image/*" style="display:none">
+        </div>
+
+        <img id="imgPreview" class="ocr-preview" style="display:none">
+
+        <div id="imgLoading" style="display:none; text-align:center; padding:20px;">
+          <div class="spinner"></div> <span class="loading-text">正在识别文字...</span>
+        </div>
+
+        <div id="imgResult" style="display:none">
+          <h3 style="margin:12px 0 6px;">识别结果（可编辑）：</h3>
+          <div class="ocr-result" id="imgRawText" contenteditable="true"></div>
+          <form id="ocrImageForm">
+            <div class="form-group">
+              <label>题目名称</label>
+              <input type="text" id="oiTitle">
+            </div>
+            <div class="form-group">
+              <label>题目内容 *</label>
+              <textarea id="oiContent" required></textarea>
+            </div>
+            <div class="form-group">
+              <label>正确答案 *</label>
+              <input type="text" id="oiAnswer" required>
+            </div>
+            <div class="form-group">
+              <label>解题提示</label>
+              <textarea id="oiHint" rows="2"></textarea>
+            </div>
+            <div class="form-group">
+              <label>学科</label>
+              <select id="oiSubject">
+                <option value="math">📐 数学</option>
+                <option value="chinese">📖 语文</option>
+                <option value="english">🌍 英语</option>
+              </select>
+            </div>
+            <button type="submit" class="btn btn-success btn-lg">💾 确认保存</button>
+          </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 3: PDF导入 -->
+    <div class="tab-content" id="tab-ocr-pdf">
+      <div class="card">
+        <h2 style="margin-bottom:16px;">📄 PDF导入错题</h2>
+        <p style="color:var(--text-light);margin-bottom:16px;">上传含错题的PDF文件（文字版PDF效果最佳）。</p>
+
+        <div class="file-upload-area" id="pdfDropArea">
+          <div class="icon">📄</div>
+          <p>点击或拖拽上传 PDF</p>
+          <p class="hint">建议使用文字版PDF（非扫描件）</p>
+          <input type="file" id="pdfFile" accept=".pdf" style="display:none">
+        </div>
+
+        <div id="pdfLoading" style="display:none; text-align:center; padding:20px;">
+          <div class="spinner"></div> <span class="loading-text">正在解析PDF...</span>
+        </div>
+
+        <div id="pdfResult" style="display:none">
+          <div id="pdfWarning" style="display:none; padding:10px; background:#fff3cd; border-radius:8px; margin-bottom:12px; font-size:0.9rem;"></div>
+          <h3 style="margin:12px 0 6px;">提取内容：</h3>
+          <div class="ocr-result" id="pdfRawText" contenteditable="true"></div>
+          <p style="color:var(--text-light);font-size:0.85rem;margin-top:8px;">请手动复制需要的题目内容，粘贴到「手动录入」标签页保存。</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab 4: 错题列表 -->
+    <div class="tab-content" id="tab-list">
+      <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;flex-wrap:wrap;gap:8px;">
+          <h2>📋 错题列表</h2>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <select id="subjectFilter" style="padding:6px 10px;border:2px solid #e0d8cc;border-radius:6px;font-size:0.9rem;">
+              <option value="">全部学科</option>
+              <option value="math">📐 数学</option>
+              <option value="chinese">📖 语文</option>
+              <option value="english">🌍 英语</option>
+            </select>
+            <button class="btn btn-outline btn-sm" id="refreshList">🔄 刷新</button>
+          </div>
+        </div>
+        <div id="problemList"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Toast -->
+  <div id="toast" class="toast" style="display:none"></div>
+
+  <!-- 登录遮罩 -->
+  <div class="login-overlay" id="loginOverlay">
+    <div class="login-box">
+      <h2>🔐 家长登录</h2>
+      <p class="sub">请输入管理密码</p>
+      <input type="password" id="loginPwd" placeholder="••••••" autocomplete="current-password">
+      <p class="login-err" id="loginErr"></p>
+      <button class="btn btn-primary" id="loginBtn" style="width:100%;margin-top:12px;">登 录</button>
+    </div>
+  </div>
+
+  <script>
+    // ── 鉴权 ──
+    let authToken = sessionStorage.getItem('adminToken') || '';
+
+    // ── 工具函数 ──
+    function $(s) { return document.querySelector(s); }
+    function $$(s) { return document.querySelectorAll(s); }
+
+    async function api(url, opts = {}) {
+      const headers = { 'Content-Type': 'application/json' };
+      if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+      const res = await fetch(url, { headers, ...opts });
+      if (res.status === 401) {
+        authToken = '';
+        sessionStorage.removeItem('adminToken');
+        showLogin();
+      }
+      return res.json();
+    }
+
+    function showToast(msg, type = 'info') {
+      const t = $('#toast');
+      t.textContent = msg;
+      t.className = 'toast ' + type;
+      t.style.display = 'block';
+      t.style.animation = 'toastIn 0.3s ease';
+      clearTimeout(t._timeout);
+      t._timeout = setTimeout(() => {
+        t.style.animation = 'toastOut 0.3s ease forwards';
+        setTimeout(() => { t.style.display = 'none'; }, 300);
+      }, 2000);
+    }
+
+    // ── 登录 / 登出 ──
+    function showLogin() {
+      $('#loginOverlay').style.display = 'flex';
+      $('#logoutBtn').style.display = 'none';
+    }
+
+    function hideLogin() {
+      $('#loginOverlay').style.display = 'none';
+      $('#logoutBtn').style.display = 'inline-block';
+    }
+
+    $('#loginBtn').addEventListener('click', async () => {
+      const pwd = $('#loginPwd').value;
+      if (!pwd) { $('#loginErr').textContent = '请输入密码'; return; }
+      const res = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ password: pwd })
+      });
+      const data = await res.json();
+      if (data.ok) {
+        authToken = data.token;
+        sessionStorage.setItem('adminToken', authToken);
+        hideLogin();
+        $('#loginPwd').value = '';
+        $('#loginErr').textContent = '';
+        refreshStats();
+        loadProblemList();
+      } else {
+        $('#loginErr').textContent = data.error || '登录失败';
+      }
+    });
+
+    $('#loginPwd').addEventListener('keydown', e => {
+      if (e.key === 'Enter') $('#loginBtn').click();
+    });
+
+    $('#logoutBtn').addEventListener('click', async () => {
+      await fetch('/api/auth/logout', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + authToken }
+      });
+      authToken = '';
+      sessionStorage.removeItem('adminToken');
+      showLogin();
+      showToast('已退出登录');
+    });
+
+    // ── 初始化鉴权状态 ──
+    if (authToken) { hideLogin(); } else { showLogin(); }
+
+    // ── 标签切换 ──
+    $$('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        $$('.tab').forEach(t => t.classList.remove('active'));
+        $$('.tab-content').forEach(c => c.classList.remove('active'));
+        tab.classList.add('active');
+        $('#tab-' + tab.dataset.tab).classList.add('active');
+        if (tab.dataset.tab === 'list') loadProblemList();
+        if (tab.dataset.tab === 'list') refreshStats();
+      });
+    });
+
+    // ── 标签输入 ──
+    let tags = [];
+    const tagWrap = $('#tagWrap');
+    const tagInput = $('#tagInput');
+
+    tagInput.addEventListener('keydown', e => {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        const val = tagInput.value.trim();
+        if (val && !tags.includes(val)) {
+          tags.push(val);
+          renderTags();
+        }
+        tagInput.value = '';
+      }
+    });
+
+    tagWrap.addEventListener('click', () => tagInput.focus());
+
+    function renderTags() {
+      const pills = tagWrap.querySelectorAll('.tag-pill');
+      pills.forEach(p => p.remove());
+      tags.forEach(tag => {
+        const pill = document.createElement('span');
+        pill.className = 'tag-pill';
+        pill.innerHTML = tag + '<span class="remove">&times;</span>';
+        pill.querySelector('.remove').addEventListener('click', e => {
+          e.stopPropagation();
+          tags = tags.filter(t => t !== tag);
+          renderTags();
+        });
+        tagWrap.insertBefore(pill, tagInput);
+      });
+    }
+
+    // ── 统计 ──
+    async function refreshStats() {
+      const [problems, progress] = await Promise.all([
+        api('/api/problems'),
+        api('/api/progress')
+      ]);
+      const mastered = Object.values(progress.problemStats || {}).filter(s => s.mastered).length;
+      const unlocked = (progress.tiles || []).filter(t => t.status === 'unlocked').length;
+      $('#statsBar').innerHTML = `
+        <div class="stat-item"><div class="num">${problems.length}</div><div class="label">错题总数</div></div>
+        <div class="stat-item"><div class="num">${mastered}</div><div class="label">已掌握</div></div>
+        <div class="stat-item"><div class="num">🏰 ${unlocked}/20</div><div class="label">王国进度</div></div>
+      `;
+    }
+
+    // ── 手动录入 ──
+    $('#manualForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const editId = $('#mEditId').value;
+      const data = {
+        title: $('#mTitle').value.trim(),
+        content: $('#mContent').value.trim(),
+        answer: $('#mAnswer').value.trim(),
+        hint: $('#mHint').value.trim(),
+        tags: tags,
+        difficulty: parseInt($('#mDifficulty').value),
+        subject: $('#mSubject').value
+      };
+      if (!data.content || !data.answer) return showToast('题目内容和答案不能为空', 'error');
+
+      const url = editId ? '/api/problems/' + editId : '/api/problems';
+      const method = editId ? 'PUT' : 'POST';
+      const res = await api(url, { method, body: JSON.stringify(data) });
+      if (res.ok) {
+        showToast(editId ? '✅ 错题已更新' : '✅ 错题已保存', 'success');
+        resetManualForm();
+        refreshStats();
+      } else {
+        showToast(res.error || '保存失败', 'error');
+      }
+    });
+
+    function resetManualForm() {
+      $('#manualForm').reset();
+      $('#mEditId').value = '';
+      tags = [];
+      renderTags();
+      $('#saveBtn').textContent = '💾 保存错题';
+      $('#cancelEdit').style.display = 'none';
+    }
+
+    // ── 拍照识别 ──
+    const imgDrop = $('#imgDropArea');
+    const imgFile = $('#imgFile');
+
+    imgDrop.addEventListener('click', () => imgFile.click());
+    imgDrop.addEventListener('dragover', e => { e.preventDefault(); imgDrop.style.borderColor = 'var(--green)'; });
+    imgDrop.addEventListener('dragleave', () => imgDrop.style.borderColor = '#d0c8b8');
+    imgDrop.addEventListener('drop', e => {
+      e.preventDefault();
+      imgDrop.style.borderColor = '#d0c8b8';
+      if (e.dataTransfer.files.length) handleImage(e.dataTransfer.files[0]);
+    });
+    imgFile.addEventListener('change', () => {
+      if (imgFile.files.length) handleImage(imgFile.files[0]);
+    });
+
+    async function handleImage(file) {
+      // 预览
+      const reader = new FileReader();
+      reader.onload = e => {
+        $('#imgPreview').src = e.target.result;
+        $('#imgPreview').style.display = 'block';
+      };
+      reader.readAsDataURL(file);
+
+      // OCR
+      $('#imgLoading').style.display = 'block';
+      $('#imgResult').style.display = 'none';
+
+      const formData = new FormData();
+      formData.append('image', file);
+
+      try {
+        const headers = {};
+        if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+        const res = await fetch('/api/ocr/image', { method: 'POST', headers, body: formData });
+        const data = await res.json();
+        $('#imgLoading').style.display = 'none';
+        $('#imgResult').style.display = 'block';
+
+        if (data.ok) {
+          $('#imgRawText').textContent = data.raw || '(未识别到文字)';
+          $('#oiTitle').value = data.title || '';
+          $('#oiContent').value = data.content || data.raw || '';
+          $('#oiAnswer').value = data.answer || '';
+          $('#oiHint').value = data.hint || '';
+        } else {
+          showToast(data.error || '识别失败', 'error');
+        }
+      } catch (err) {
+        $('#imgLoading').style.display = 'none';
+        showToast('识别失败: ' + err.message, 'error');
+      }
+    }
+
+    // OCR 结果保存
+    $('#ocrImageForm').addEventListener('submit', async e => {
+      e.preventDefault();
+      const data = {
+        title: $('#oiTitle').value.trim(),
+        content: $('#oiContent').value.trim(),
+        answer: $('#oiAnswer').value.trim(),
+        hint: $('#oiHint').value.trim(),
+        difficulty: 1,
+        subject: $('#oiSubject').value
+      };
+      if (!data.content || !data.answer) return showToast('题目内容和答案不能为空', 'error');
+
+      const res = await api('/api/problems', {
+        method: 'POST',
+        body: JSON.stringify(data)
+      });
+      if (res.ok) {
+        showToast('✅ 错题已保存', 'success');
+        $('#ocrImageForm').reset();
+        $('#imgPreview').style.display = 'none';
+        $('#imgResult').style.display = 'none';
+        refreshStats();
+      } else {
+        showToast(res.error || '保存失败', 'error');
+      }
+    });
+
+    // ── PDF导入 ──
+    const pdfDrop = $('#pdfDropArea');
+    const pdfFile = $('#pdfFile');
+
+    pdfDrop.addEventListener('click', () => pdfFile.click());
+    pdfDrop.addEventListener('dragover', e => { e.preventDefault(); pdfDrop.style.borderColor = 'var(--red)'; });
+    pdfDrop.addEventListener('dragleave', () => pdfDrop.style.borderColor = '#d0c8b8');
+    pdfDrop.addEventListener('drop', e => {
+      e.preventDefault();
+      pdfDrop.style.borderColor = '#d0c8b8';
+      if (e.dataTransfer.files.length) handlePDF(e.dataTransfer.files[0]);
+    });
+    pdfFile.addEventListener('change', () => {
+      if (pdfFile.files.length) handlePDF(pdfFile.files[0]);
+    });
+
+    async function handlePDF(file) {
+      $('#pdfLoading').style.display = 'block';
+      $('#pdfResult').style.display = 'none';
+
+      const formData = new FormData();
+      formData.append('pdf', file);
+
+      try {
+        const headers = {};
+        if (authToken) headers['Authorization'] = 'Bearer ' + authToken;
+        const res = await fetch('/api/ocr/pdf', { method: 'POST', headers, body: formData });
+        const data = await res.json();
+        $('#pdfLoading').style.display = 'none';
+        $('#pdfResult').style.display = 'block';
+
+        if (data.ok) {
+          $('#pdfRawText').textContent = data.raw || '(未提取到文字)';
+          if (data.warning) {
+            $('#pdfWarning').textContent = '⚠️ ' + data.warning;
+            $('#pdfWarning').style.display = 'block';
+          } else {
+            $('#pdfWarning').style.display = 'none';
+          }
+        } else {
+          showToast(data.error || '解析失败', 'error');
+        }
+      } catch (err) {
+        $('#pdfLoading').style.display = 'none';
+        showToast('解析失败: ' + err.message, 'error');
+      }
+    }
+
+    // ── 错题列表 ──
+    const SUBJECT_LABELS = { math: '📐 数学', chinese: '📖 语文', english: '🌍 英语' };
+
+    async function loadProblemList() {
+      const filter = $('#subjectFilter').value;
+      const url = filter ? '/api/problems?subject=' + filter : '/api/problems';
+      const problems = await api(url);
+      const list = $('#problemList');
+
+      if (problems.length === 0) {
+        list.innerHTML = '<div class="empty-state"><div class="icon">📭</div><p>还没有错题，快去添加吧！</p></div>';
+        return;
+      }
+
+      list.innerHTML = problems.map(p => `
+        <div class="problem-list-item" data-id="${p.id}">
+          <div class="info">
+            <div class="title">${escHtml(p.title || '未命名')}
+              <span class="badge badge-subject badge-${p.subject || 'math'}">${SUBJECT_LABELS[p.subject || 'math']}</span>
+            </div>
+            <div style="margin:4px 0;font-size:0.9rem;">${escHtml(p.content)}</div>
+            <div class="meta">
+              答案：${escHtml(p.answer)} &nbsp;|&nbsp;
+              难度：${'⭐'.repeat(p.difficulty || 1)} &nbsp;|&nbsp;
+              ${(p.tags || []).map(t => `<span class="badge">${escHtml(t)}</span>`).join(' ')}
+            </div>
+          </div>
+          <div class="actions">
+            <button class="btn btn-outline btn-sm" onclick="editProblem('${p.id}')">✏️</button>
+            <button class="btn btn-danger btn-sm" onclick="deleteProblem('${p.id}')">🗑️</button>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    $('#subjectFilter').addEventListener('change', () => {
+      loadProblemList();
+      refreshStats();
+    });
+
+    function escHtml(s) {
+      const d = document.createElement('div');
+      d.textContent = s || '';
+      return d.innerHTML;
+    }
+
+    async function deleteProblem(id) {
+      if (!confirm('确定删除这道错题吗？')) return;
+      const res = await api('/api/problems/' + id, { method: 'DELETE' });
+      if (res.ok) {
+        showToast('已删除', 'success');
+        loadProblemList();
+        refreshStats();
+      } else {
+        showToast('删除失败', 'error');
+      }
+    }
+
+    async function editProblem(id) {
+      const problems = await api('/api/problems');
+      const p = problems.find(x => x.id === id);
+      if (!p) return;
+
+      // 切换到手动录入标签并填充
+      $$('.tab').forEach(t => t.classList.remove('active'));
+      $$('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelector('[data-tab="manual"]').classList.add('active');
+      $('#tab-manual').classList.add('active');
+
+      $('#mEditId').value = p.id;
+      $('#mTitle').value = p.title || '';
+      $('#mContent').value = p.content || '';
+      $('#mAnswer').value = p.answer || '';
+      $('#mHint').value = p.hint || '';
+      $('#mDifficulty').value = p.difficulty || 1;
+      $('#mSubject').value = p.subject || 'math';
+      tags = [...(p.tags || [])];
+      renderTags();
+      $('#saveBtn').textContent = '💾 更新错题';
+      $('#cancelEdit').style.display = 'inline-block';
+
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    $('#cancelEdit').addEventListener('click', () => {
+      resetManualForm();
+      $('#saveBtn').textContent = '💾 保存错题';
+      $('#cancelEdit').style.display = 'none';
+    });
+
+    $('#refreshList').addEventListener('click', () => { loadProblemList(); refreshStats(); });
+
+    // ── 初始化 ──
+    refreshStats();
+    loadProblemList();
+  </script>
+</body>
+</html>

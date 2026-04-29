@@ -1,0 +1,95 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <title>🏰 错题王国</title>
+  <link rel="stylesheet" href="style.css">
+  <style>
+    .landing {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      padding: 20px;
+      text-align: center;
+      background: linear-gradient(180deg, #e8f4fd 0%, #f5f0e8 50%, #e8f5e9 100%);
+    }
+    .landing .logo {
+      font-size: 5rem;
+      margin-bottom: 10px;
+      animation: float 3s ease-in-out infinite;
+    }
+    @keyframes float {
+      0%, 100% { transform: translateY(0); }
+      50% { transform: translateY(-12px); }
+    }
+    .landing h1 {
+      font-size: 2.2rem;
+      margin-bottom: 8px;
+      color: #3e2723;
+    }
+    .landing .subtitle {
+      color: #6d5d4b;
+      font-size: 1.05rem;
+      margin-bottom: 40px;
+    }
+    .landing .choices {
+      display: flex;
+      gap: 24px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+    .choice-card {
+      display: block;
+      background: #fff;
+      border-radius: 20px;
+      padding: 32px 28px;
+      width: 220px;
+      text-decoration: none;
+      color: var(--text);
+      box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+      transition: all 0.3s;
+      cursor: pointer;
+      text-align: center;
+    }
+    .choice-card:hover {
+      transform: translateY(-6px);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+    }
+    .choice-card .icon { font-size: 3.5rem; margin-bottom: 12px; }
+    .choice-card .title { font-size: 1.3rem; font-weight: 700; margin-bottom: 6px; }
+    .choice-card .desc { font-size: 0.85rem; color: var(--text-light); }
+    .choice-card.admin { border: 3px solid var(--blue); }
+    .choice-card.play { border: 3px solid var(--gold); }
+
+    @media (max-width: 500px) {
+      .landing h1 { font-size: 1.6rem; }
+      .choice-card { width: 160px; padding: 24px 20px; }
+      .choice-card .icon { font-size: 2.5rem; }
+      .choice-card .title { font-size: 1.1rem; }
+    }
+  </style>
+</head>
+<body>
+  <div class="landing">
+    <div class="logo">🏰</div>
+    <h1>错题王国</h1>
+    <p class="subtitle">把错题变成宝藏，一题一题建造你的王国！</p>
+
+    <div class="choices">
+      <a href="admin.html" class="choice-card admin">
+        <div class="icon">📝</div>
+        <div class="title">家长管理</div>
+        <div class="desc">录入错题 · OCR识别 · 查看进度</div>
+      </a>
+      <a href="play.html" class="choice-card play">
+        <div class="icon">⚔️</div>
+        <div class="title">开始闯关</div>
+        <div class="desc">答题解锁 · 建造王国 · 打败错题</div>
+      </a>
+    </div>
+  </div>
+</body>
+</html>
